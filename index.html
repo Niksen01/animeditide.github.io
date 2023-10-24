@@ -220,10 +220,18 @@
           theme: "monokai" // Use a theme of your choice
         });
 
-         // Suggestions container
-         var suggestionsContainer = document.getElementById("suggestions");
+        // Suggestions container
+        var suggestionsContainer = document.getElementById("suggestions");
         var copyButton = document.getElementById("copyButton");
         var suggestionsEnabled=false
+
+var savedContent = localStorage.getItem("code");
+
+// Check if there's saved content
+if (savedContent) {
+  // Set the editor's content to the saved content
+  editor.setValue(savedContent);
+}
 
 // List of custom suggestions
 var customKeySuggestions = [
@@ -461,6 +469,9 @@ console.log(selectedSuggestionIndex)
             enteredCharacters=""
             suggestionsEnabled=false
         }
+
+        var content = editor.getValue();
+        localStorage.setItem("code", content);
     });
 
     // Handle suggestion selection
