@@ -2,7 +2,7 @@
 <html>
 <head>
   <tile>AnimationEditorIDE</tile>
-  
+
     <!-- Include CodeMirror CSS -->
     <link rel="stylesheet" href="codemirror-5.65.15/lib/codemirror.css">
     
@@ -76,6 +76,9 @@
         .cm-dot{
             color:burlywood
         }
+        .cm-comments{
+          color:darkseagreen
+        }
 
         /* Custom IntelliSense suggestion styles */
         .cm-suggestion {
@@ -102,6 +105,17 @@
             font: menu;
         }
 
+
+        #copyButton{
+          position: absolute;
+        width: 20px;
+        height: 20px;
+        background-color: #3d3d3d;
+        border: 1px solid rgb(22, 22, 22)323;
+        max-height: 150px;
+        overflow-y: auto;
+        }
+
         #suggestions {
         position: absolute;
         width: 200px;
@@ -119,6 +133,7 @@
     <div id="container">
         <!-- Add a textarea with the ID "myTextarea" -->
         <textarea id="myTextarea"></textarea>
+        <button id="copyButton"></button>
         <!-- Suggestions container -->
         <div id="suggestions"></div>
     </div>
@@ -129,6 +144,13 @@
         CodeMirror.defineMode("mycustommode", function(config) {
           return {
             token: function(stream, state) {
+              // Check for comments
+              if (stream.match(/--(\s*[\w-]+(\s+|$))+/)) {
+    return "comment"; // Style multi-line comments starting with '--'
+} else if (stream.match(/--\s*/)) {
+    return "comment"; // Style comments starting with '--'
+}
+
               // Check for the keyword (word before equal)
               if (stream.match(/^[\w-]+(?=\s*=\s*)/)) {
                 return "key"; // Style keywords (word before equal)
@@ -138,9 +160,9 @@
               if (stream.match(/^\s*=\s*/)) {
                 return "operator"; // Style equal sign
               }
-              if (stream.match(/^\d+/)) {
-        return "vnumber"; // Style numbers
-      }
+              if (stream.match(/^-?\d+(\.\d+)?/)) {
+               return "vnumber"; // Style numbers
+              }
               if (stream.match(/Workspace/) || stream.match(/ReplicatedStorage/) || stream.match(/Players/)) {
                  return "robloxheader";
               }
@@ -200,26 +222,30 @@
 
          // Suggestions container
          var suggestionsContainer = document.getElementById("suggestions");
+        var copyButton = document.getElementById("copyButton");
         var suggestionsEnabled=false
 
 // List of custom suggestions
 var customKeySuggestions = [
     "Enabled", "Destroy", "CloneObject", "Get", "Parent", "Locate",
     "Position", "Rotation", "Transparency", "Color", "LightEmission",
-    "Size", "ParticleSize", "Enabled", "Lifetime", "Rate", "ParticleRotation",
+    "Size", "ParticleSize", "Lifetime", "Rate", "ParticleRotation",
     "RotSpeed", "Speed", "SpreadAngle", "Acceleration", "Drag", "VelocityInheritance",
     "LockedToPart", "WindAffectsDrag", "TimeScale", "ZOffset"
 ];
-var customVarSuggestions = ["true", "false", "Workspace", "ReplicatedStorage", "Players"]
+var customVarSuggestions = ["true", "false", "Workspace", "ReplicatedStorage", "Players", "vector", "numbersequence", "user"]
 
 let enteredCharacters = "";
-let selectedSuggestionIndex = 0;
-let lastSelectedSuggestionIndex = 0;
+let selectedSuggestionIndex = 1;
+let lastSelectedSuggestionIndex = 1;
 
 editor.on("keydown", function(editor, event) {
-
+console.log("index: " + selectedSuggestionIndex)
     if(suggestionsEnabled === false)
     return;
+
+    
+  //selectedSuggestionIndex = selectedSuggestionIndex < 0 ? suggestionsArray.length : selectedSuggestionIndex
 
     suggestionsContainer = document.getElementById("suggestions");
     var suggestionsArray = Array.from(suggestionsContainer.children)
@@ -229,17 +255,18 @@ editor.on("keydown", function(editor, event) {
 
     if (selectedSuggestionIndex >= 0) {
       // If a suggestion is selected, choose it
-      while(suggestionsArray[selectedSuggestionIndex].classList[0] === "cm-header")
+      if(suggestionsArray[selectedSuggestionIndex])
+      while( suggestionsArray[selectedSuggestionIndex].classList[0] === "cm-header")
   {
     if (selectedSuggestionIndex >= suggestionsArray.length - 1)
     {
-        selectedSuggestionIndex = 0
-        lastSelectedSuggestionIndex = 0
+        selectedSuggestionIndex = 1
+        lastSelectedSuggestionIndex = 1
     }
     else if(selectedSuggestionIndex < 0)
     {
-        selectedSuggestionIndex = suggestionsArray.length-1
-        lastSelectedSuggestionIndex = 0
+        selectedSuggestionIndex = suggestionsArray.length-1// < 0 ? 0 : suggestionsArray.length-1
+        lastSelectedSuggestionIndex = 1
     }
     else
     {
@@ -249,12 +276,14 @@ editor.on("keydown", function(editor, event) {
         else
         {
             selectedSuggestionIndex--;
+            selectedSuggestionIndex = selectedSuggestionIndex < 0 ? suggestionsArray.length-1 : selectedSuggestionIndex
         }
     }
   }
       const selectedSuggestion = suggestionsArray[selectedSuggestionIndex];
       selectedSuggestion.click();
-      selectedSuggestionIndex = 0
+      selectedSuggestionIndex = 1
+      lastSelectedSuggestionIndex = 1
       suggestionKey=true
       //insertSuggestion(selectedSuggestion); // You'll need to define this function to insert the selected suggestion
     }
@@ -278,17 +307,18 @@ editor.on("keydown", function(editor, event) {
 
   if(suggestionKey){
   //console.log(suggestionsArray[selectedSuggestionIndex].classList[0] === "cm-header")
+  if(suggestionsArray[selectedSuggestionIndex])
   while(suggestionsArray[selectedSuggestionIndex].classList[0] === "cm-header")
   {
     if (selectedSuggestionIndex >= suggestionsArray.length - 1)
     {
-        selectedSuggestionIndex = 0
-        lastSelectedSuggestionIndex = 0
+        selectedSuggestionIndex = 1
+        lastSelectedSuggestionIndex = 1
     }
     else if(selectedSuggestionIndex < 0)
     {
-        selectedSuggestionIndex = suggestionsArray.length-1
-        lastSelectedSuggestionIndex = 0
+        selectedSuggestionIndex = suggestionsArray.length-1// < 0 ? 0 : suggestionsArray.length-1
+        lastSelectedSuggestionIndex = 1
     }
     else
     {
@@ -298,9 +328,11 @@ editor.on("keydown", function(editor, event) {
         else
         {
             selectedSuggestionIndex--;
+            selectedSuggestionIndex = selectedSuggestionIndex < 0 ? suggestionsArray.length-1 : selectedSuggestionIndex
         }
     }
   }
+
   // Calculate the scroll position to make the selected suggestion visible
   const selectedSuggestionTop = suggestionsArray[selectedSuggestionIndex].offsetTop;
   const containerScrollTop = suggestionsContainer.scrollTop;
@@ -340,8 +372,8 @@ console.log(selectedSuggestionIndex)
         var cursorPos = editor.cursorCoords(cursor);
         var token = editor.getTokenAt(cursor);
 
-        console.log(token)
-
+        copyButton.style.top = cursorPos.top + 10 + "px";
+        copyButton.style.left = cursorPos.right + 220 + "px";
 
         if (token.type === "key" || token.type === "var"){
 
@@ -436,6 +468,34 @@ console.log(selectedSuggestionIndex)
         // Get the selected suggestion
         var selectedSuggestion = event.target.innerText;
 
+        for(let i = 0; i < customKeySuggestions.length; i++)
+        {
+          if(customKeySuggestions[i] == selectedSuggestion)
+          {
+            selectedSuggestion+="=,";
+            break;
+          }
+          else if(customVarSuggestions[i] == selectedSuggestion)
+          {
+            if(selectedSuggestion == "vector")
+            {
+              selectedSuggestion = "0'0'0";
+            }
+            else if(selectedSuggestion == "numbersequence")
+            {
+              selectedSuggestion = "0#0";
+            }
+            else if(selectedSuggestion == "user")
+            {
+              selectedSuggestion = "[USER]";
+            }
+          }
+        }
+        //if(customKeySuggestions.find(selectedSuggestion))
+        //{
+        //  selectedSuggestion+="=";
+        //}
+
         // Replace the current word with the selected suggestion
         var cursor = editor.getCursor();
         var line = editor.getLine(cursor.line);
@@ -453,11 +513,28 @@ console.log(selectedSuggestionIndex)
         const endPos = cursor;
         //editor.replaceRange(replacement, { line: cursor.line, ch: 0 }, { line: cursor.line, ch: line.length });
         editor.replaceRange(selectedSuggestion, startPos, endPos);
+
+        editor.focus()
+        editor.setCursor({line: cursor.line, ch: startPos.ch + selectedSuggestion.length-1})
+
         // Hide the suggestions
         suggestionsContainer.style.display = "none";
         enteredCharacters=""
         suggestionsEnabled=false
     });
+
+
+    copyButton.addEventListener("click", function(event) {
+      let elementText = editor.getValue().replace(/--.*$/gm, '').replace(/\s+/g, '');
+      console.log(elementText)
+      let inputElement = document.createElement('input');
+      inputElement.setAttribute('value', elementText);
+      document.body.appendChild(inputElement);
+      inputElement.select();
+      document.execCommand('copy');
+      inputElement.remove();
+});
+
     </script>
 </body>
 </html>
