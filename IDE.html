@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <!-- Include CodeMirror CSS -->
+    <link rel="stylesheet" href="codemirror-5.65.15/lib/codemirror.css">
+    
+    <!-- Include CodeMirror JavaScript -->
+    <script src="codemirror-5.65.15/lib/codemirror.js"></script>
+    
+    <!-- Include a syntax highlighting mode (e.g., JavaScript) -->
+    <script src="codemirror-5.65.15/mode/javascript/javascript.js"></script>
+    
+    <!-- Include a CodeMirror theme (e.g., Monokai) -->
+    <link rel="stylesheet" href="codemirror-5.65.15/theme/monokai.css">
+    
+    <!-- CSS styles for full-screen and custom styling -->
+    <style>
+        /* Reset margin and padding for body and html */
+        body, html {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden; /* Prevent scrollbars */
+        }
+        
+        /* Apply custom styles to the CodeMirror editor */
+        .CodeMirror.cm-s-monokai {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            font-size: xx-large;
+        }
+
+        /* Define custom token styles */
+        .cm-key {
+            color: red;
+        }
+
+        .cm-operator {
+            color: yellow;
+        }
+
+        .cm-var {
+            color: cyan;
+        }
+        .cm-vnumber{
+            color: rgb(234, 11, 234);
+        }
+
+        .cm-vector {
+            color: wheat;
+        }
+        .cm-numberseq {
+            color:chocolate
+        }
+
+        .cm-getuser{
+            color: orange;
+        }
+        .cm-robloxheader{
+            color:rgb(0, 183, 255);
+        }
+
+        .cm-semicolon{
+            color: seagreen
+        }
+        .cm-comma{
+            color: darkseagreen
+        }
+        .cm-dot{
+            color:burlywood
+        }
+
+        /* Custom IntelliSense suggestion styles */
+        .cm-suggestion {
+            background-color: #4e4e4e80;
+            color: rgb(6, 147, 255);
+            cursor: pointer;
+            font:menu;
+        }
+        
+        .cm-suggestion:hover{
+            background-color: #3e66ac80;
+        }
+
+        .cm-selected-suggestion{
+            background-color: #3e66ac80;
+            color: rgb(0, 145, 255);
+            cursor: pointer;
+            font:menu;
+        }
+
+        .cm-header {
+            background-color: #00000080;
+            color: rgb(143, 143, 143);
+            font: menu;
+        }
+
+        #suggestions {
+        position: absolute;
+        width: 200px;
+        height: 100px;
+        background-color: #3d3d3d;
+        border: 1px solid rgb(22, 22, 22)323;
+        max-height: 150px;
+        overflow-y: auto;
+        display: none; /* Initially hide the suggestions */
+    }
+    </style>
+</head>
+<body>
+    <!-- Add a container div for additional control -->
+    <div id="container">
+        <!-- Add a textarea with the ID "myTextarea" -->
+        <textarea id="myTextarea"></textarea>
+        <!-- Suggestions container -->
+        <div id="suggestions"></div>
+    </div>
+
+    <!-- Your HTML content goes here -->
+    <script>
+        // Define a custom mode for the format "keyword = value"
+        CodeMirror.defineMode("mycustommode", function(config) {
+          return {
+            token: function(stream, state) {
+              // Check for the keyword (word before equal)
+              if (stream.match(/^[\w-]+(?=\s*=\s*)/)) {
+                return "key"; // Style keywords (word before equal)
+              }
+              
+              // Check for the equal sign
+              if (stream.match(/^\s*=\s*/)) {
+                return "operator"; // Style equal sign
+              }
+              if (stream.match(/^\d+/)) {
+        return "vnumber"; // Style numbers
+      }
+              if (stream.match(/Workspace/) || stream.match(/ReplicatedStorage/) || stream.match(/Players/)) {
+                 return "robloxheader";
+              }
+              // Check for the value (word after equal) or a standalone keyword
+            if (stream.match(/[\w-]+/)) {
+                return stream.string.match(/^[\w-]+$/) ? "key" : "var"; // Style as key if no equal sign, otherwise as var
+            }
+
+            
+
+              // Check for the value (word after equal)
+              if (stream.match(/[\w-]+/)) {
+                return "var"; // Style values (word after equal)
+              }
+
+              if (stream.match(/;/)) {
+                return "semicolon"; // Style semicolon as a separate token
+              }
+
+              if (stream.match(/,/)) {
+                return "comma"; // Style semicolon as a separate token
+              }
+
+              if (stream.match(/'/)) {
+                 return "vector";
+              }
+
+              if (stream.match(/#/)){
+                return "numberseq";
+              }
+
+              if (stream.match(/^\[USER\]/)) {
+                 return "getuser";
+              }
+
+              
+
+              if (stream.match(/./)) {
+                 return "dot";
+              }
+
+              
+              
+
+              // If no match is found, move to the next token
+              stream.next();
+            }
+          };
+        });
+
+        // Create a CodeMirror instance with the custom mode
+        var editor = CodeMirror.fromTextArea(document.getElementById("myTextarea"), {
+          lineNumbers: true,
+          mode: "mycustommode", // Use your custom mode
+          theme: "monokai" // Use a theme of your choice
+        });
+
+         // Suggestions container
+         var suggestionsContainer = document.getElementById("suggestions");
+        var suggestionsEnabled=false
+
+// List of custom suggestions
+var customKeySuggestions = [
+    "Enabled", "Destroy", "CloneObject", "Get", "Parent", "Locate",
+    "Position", "Rotation", "Transparency", "Color", "LightEmission",
+    "Size", "ParticleSize", "Enabled", "Lifetime", "Rate", "ParticleRotation",
+    "RotSpeed", "Speed", "SpreadAngle", "Acceleration", "Drag", "VelocityInheritance",
+    "LockedToPart", "WindAffectsDrag", "TimeScale", "ZOffset"
+];
+var customVarSuggestions = ["true", "false", "Workspace", "ReplicatedStorage", "Players"]
+
+let enteredCharacters = "";
+let selectedSuggestionIndex = 0;
+let lastSelectedSuggestionIndex = 0;
+
+editor.on("keydown", function(editor, event) {
+
+    if(suggestionsEnabled === false)
+    return;
+
+    suggestionsContainer = document.getElementById("suggestions");
+    var suggestionsArray = Array.from(suggestionsContainer.children)
+  let suggestionKey = false
+  if (event.key === "Enter") {
+    event.preventDefault(); // Prevent the default Enter behavior
+
+    if (selectedSuggestionIndex >= 0) {
+      // If a suggestion is selected, choose it
+      while(suggestionsArray[selectedSuggestionIndex].classList[0] === "cm-header")
+  {
+    if (selectedSuggestionIndex >= suggestionsArray.length - 1)
+    {
+        selectedSuggestionIndex = 0
+        lastSelectedSuggestionIndex = 0
+    }
+    else if(selectedSuggestionIndex < 0)
+    {
+        selectedSuggestionIndex = suggestionsArray.length-1
+        lastSelectedSuggestionIndex = 0
+    }
+    else
+    {
+        if (lastSelectedSuggestionIndex-selectedSuggestionIndex < 0){
+        selectedSuggestionIndex++;
+        }
+        else
+        {
+            selectedSuggestionIndex--;
+        }
+    }
+  }
+      const selectedSuggestion = suggestionsArray[selectedSuggestionIndex];
+      selectedSuggestion.click();
+      selectedSuggestionIndex = 0
+      suggestionKey=true
+      //insertSuggestion(selectedSuggestion); // You'll need to define this function to insert the selected suggestion
+    }
+  } else if (event.key === "ArrowUp") {
+    event.preventDefault(); // Prevent the default behavior of the arrow keys
+      suggestionKey=true
+
+    if (selectedSuggestionIndex > 0) {
+        lastSelectedSuggestionIndex = selectedSuggestionIndex
+      selectedSuggestionIndex--;
+    }
+  } else if (event.key === "ArrowDown") {
+    event.preventDefault(); // Prevent the default behavior of the arrow keys
+      suggestionKey=true
+
+    if (selectedSuggestionIndex < suggestionsArray.length - 1) {
+        lastSelectedSuggestionIndex = selectedSuggestionIndex
+      selectedSuggestionIndex++;
+    }
+  }
+
+  if(suggestionKey){
+  //console.log(suggestionsArray[selectedSuggestionIndex].classList[0] === "cm-header")
+  while(suggestionsArray[selectedSuggestionIndex].classList[0] === "cm-header")
+  {
+    if (selectedSuggestionIndex >= suggestionsArray.length - 1)
+    {
+        selectedSuggestionIndex = 0
+        lastSelectedSuggestionIndex = 0
+    }
+    else if(selectedSuggestionIndex < 0)
+    {
+        selectedSuggestionIndex = suggestionsArray.length-1
+        lastSelectedSuggestionIndex = 0
+    }
+    else
+    {
+        if (lastSelectedSuggestionIndex-selectedSuggestionIndex < 0){
+        selectedSuggestionIndex++;
+        }
+        else
+        {
+            selectedSuggestionIndex--;
+        }
+    }
+  }
+  // Calculate the scroll position to make the selected suggestion visible
+  const selectedSuggestionTop = suggestionsArray[selectedSuggestionIndex].offsetTop;
+  const containerScrollTop = suggestionsContainer.scrollTop;
+
+  // Check if the selected suggestion is above the visible area
+  if (selectedSuggestionTop < containerScrollTop) {
+    suggestionsContainer.scrollTop = selectedSuggestionTop;
+  }
+
+  // Check if the selected suggestion is below the visible area
+  const containerHeight = suggestionsContainer.clientHeight;
+  if (selectedSuggestionTop > containerScrollTop + containerHeight) {
+    suggestionsContainer.scrollTop = selectedSuggestionTop - containerHeight;
+  }
+
+  // Highlight the selected suggestion visually
+suggestionsArray.forEach((suggestion, index) => {
+    if (index == selectedSuggestionIndex){
+        suggestion.classList.add("cm-selected-suggestion");
+        suggestion.classList.toggle("cm-suggestion", false)
+    }
+    else{
+        suggestion.classList.remove("cm-selected-suggestion");
+        suggestion.classList.toggle("cm-suggestion", true)
+    }
+    //suggestion.classList.toggle("selected-suggestion", index === selectedSuggestionIndex);
+  });
+}
+
+console.log(selectedSuggestionIndex)
+});
+
+ // Capture user input and display suggestions
+ editor.on("change", function(editor, event) {
+        // Get the position of the cursor
+        var cursor = editor.getCursor();
+        var cursorPos = editor.cursorCoords(cursor);
+        var token = editor.getTokenAt(cursor);
+
+        console.log(token)
+
+
+        if (token.type === "key" || token.type === "var"){
+
+        suggestionsContainer.style.top = cursorPos.bottom + "px";
+        suggestionsContainer.style.left = cursorPos.right + "px";
+        suggestionsContainer.style.display = "block";
+        suggestionsEnabled=true
+        suggestionsContainer.innerHTML = "";
+        
+        var currentWord = token.string;
+        var filteredSuggestions = customKeySuggestions.filter(function(suggestion) {
+            return suggestion.toLowerCase().startsWith(currentWord.toLowerCase());
+        });
+
+        enteredCharacters += event.text;
+
+        //if (filteredSuggestions.length == 0){
+        //    suggestionsContainer.style.display = "none";
+        //    enteredCharacters=""
+        //}
+
+        console.log(enteredCharacters)
+
+        var headerKeyElement = document.createElement("div");
+        headerKeyElement.textContent = "Keywords:";
+        headerKeyElement.className = "cm-header";
+            suggestionsContainer.appendChild(headerKeyElement);
+
+        filteredSuggestions.forEach(function(suggestion) {
+            if (currentWord == suggestion)
+            {
+                suggestionsContainer.style.display = "none";
+                enteredCharacters=""
+                suggestionsEnabled=false
+            return;
+            }
+
+            var suggestionElement = document.createElement("div");
+            suggestionElement.textContent = suggestion;
+            suggestionElement.className = "cm-suggestion";
+            suggestionsContainer.appendChild(suggestionElement);
+        });
+
+
+
+        var filteredVarSuggestions = customVarSuggestions.filter(function(suggestion) {
+            return suggestion.toLowerCase().startsWith(currentWord.toLowerCase());
+        });
+
+        //if (filteredVarSuggestions.length == 0){
+        //    suggestionsContainer.style.display = "none";
+        //    enteredCharacters=""
+        //}
+
+        var headerKeyElement = document.createElement("div");
+        headerKeyElement.textContent = "Variables:";
+        headerKeyElement.className = "cm-header";
+            suggestionsContainer.appendChild(headerKeyElement);
+
+            filteredVarSuggestions.forEach(function(suggestion) {
+            if (currentWord == suggestion)
+            {
+                suggestionsContainer.style.display = "none";
+                enteredCharacters=""
+                suggestionsEnabled=false
+            return;
+            }
+
+            var suggestionElement = document.createElement("div");
+            suggestionElement.textContent = suggestion;
+            suggestionElement.className = "cm-suggestion";
+            suggestionsContainer.appendChild(suggestionElement);
+        });
+
+        if (filteredVarSuggestions.length + filteredSuggestions.length == 0){
+            suggestionsContainer.style.display = "none";
+            enteredCharacters=""
+            suggestionsEnabled=false
+        }
+
+
+        }
+        else{
+            suggestionsContainer.style.display = "none";
+            enteredCharacters=""
+            suggestionsEnabled=false
+        }
+    });
+
+    // Handle suggestion selection
+    suggestionsContainer.addEventListener("click", function(event) {
+        // Get the selected suggestion
+        var selectedSuggestion = event.target.innerText;
+
+        // Replace the current word with the selected suggestion
+        var cursor = editor.getCursor();
+        var line = editor.getLine(cursor.line);
+        var start = cursor.ch - editor.getSelection().length;
+        var end = cursor.ch;
+        var replacement = line.substring(0, start) + selectedSuggestion + line.substring(end);
+
+        console.log(start)
+        console.log(end)
+        console.log(line)
+        console.log(editor.getSelection().length)
+        // Update the editor content with the corrected word
+
+        const startPos = { line: cursor.line, ch: cursor.ch - enteredCharacters.length };
+        const endPos = cursor;
+        //editor.replaceRange(replacement, { line: cursor.line, ch: 0 }, { line: cursor.line, ch: line.length });
+        editor.replaceRange(selectedSuggestion, startPos, endPos);
+        // Hide the suggestions
+        suggestionsContainer.style.display = "none";
+        enteredCharacters=""
+        suggestionsEnabled=false
+    });
+    </script>
+</body>
+</html>
