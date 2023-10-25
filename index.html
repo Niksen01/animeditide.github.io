@@ -122,10 +122,24 @@
         height: 100px;
         background-color: #3d3d3d;
         border: 1px solid rgb(22, 22, 22)323;
+        border-bottom-right-radius: 5px;
+        border-bottom-left-radius: 5px;
+        border-top-right-radius: 5px;
         max-height: 150px;
         overflow-y: auto;
-        display: none; /* Initially hide the suggestions */
+        display: none;
     }
+    #customVariables {
+          position: absolute;
+          width: 200px;
+          height: 100px;
+          background-color: #3d3d3d;
+          color: whitesmoke;
+          font: bold;
+          font-size: xx-large;
+          display: none;
+          border-radius: 15px;
+        }
     </style>
 </head>
 <body>
@@ -136,6 +150,7 @@
         <button id="copyButton"></button>
         <!-- Suggestions container -->
         <div id="suggestions"></div>
+        <input id="customVariables"></input>
     </div>
 
     <!-- Your HTML content goes here -->
@@ -223,14 +238,22 @@
         // Suggestions container
         var suggestionsContainer = document.getElementById("suggestions");
         var copyButton = document.getElementById("copyButton");
+        var customVariables = document.getElementById("customVariables")
         var suggestionsEnabled=false
+        var customVariables_Added = {}
 
 var savedContent = localStorage.getItem("code");
+var savedVariables = localStorage.getItem("custom_variables")
 
 // Check if there's saved content
 if (savedContent) {
   // Set the editor's content to the saved content
   editor.setValue(savedContent);
+}
+
+if(savedVariables){
+  customVariables.value = savedVariables;
+  customVariables_Added = customVariables.value.replace(/\s/g, '').replace("_"," ").split(",")
 }
 
 // List of custom suggestions
@@ -243,16 +266,99 @@ var customKeySuggestions = [
 ];
 var customVarSuggestions = ["true", "false", "Workspace", "ReplicatedStorage", "Players", "vector", "numbersequence", "user"]
 
+
 let enteredCharacters = "";
 let selectedSuggestionIndex = 1;
 let lastSelectedSuggestionIndex = 1;
 
-editor.on("keydown", function(editor, event) {
-console.log("index: " + selectedSuggestionIndex)
-    if(suggestionsEnabled === false)
-    return;
+let mouseCoords = {x: 0, y: 0}
 
-    
+document.addEventListener("mousemove", function(event){
+  const pageWidth = Math.max(
+  document.body.scrollWidth, document.documentElement.scrollWidth,
+  document.body.offsetWidth, document.documentElement.offsetWidth,
+  document.body.clientWidth, document.documentElement.clientWidth
+);
+
+  mouseCoords.x = event.pageY;
+  mouseCoords.y = pageWidth-event.pageX;
+})
+
+editor.on("keydown", function(editor, event) {
+  
+  if(event.altKey && event.key === "l")
+  {
+    if(customVariables.style.display != "block")
+    {
+      customVariables.style.top = mouseCoords.x + "px";
+      customVariables.style.right = mouseCoords.y + "px";
+      customVariables.style.display = "block";
+    }
+    else
+    {
+      customVariables.style.display = "none";
+      customVariables_Added = customVariables.value.replace(/\s/g, '').replace("_"," ").split(",")
+
+      var content = customVariables.value;
+      localStorage.setItem("custom_variables", content);
+    }
+  }
+
+  if(event.altKey && event.key === "c")
+  {
+    event.preventDefault();
+    copyButton.click();
+    editor.focus();
+  }
+  else if(event.altKey && event.key === "v")
+  {
+    event.preventDefault();
+    var newString = ""
+    if (navigator.clipboard) {
+  // Attempt to read the contents of the clipboard
+  navigator.clipboard.readText()
+    .then(text => {
+      
+  for (var i = 0; i < text.length; i++) {
+    newString += text[i];
+    if (text[i] === ',') {
+      newString += "\n";
+    }
+    else if(text[i] === ';')
+    {
+      newString += "\n\n"
+    }
+      console.log(newString)
+  }
+  
+  // Get the current cursor position
+var cursor = editor.getCursor();
+
+// Insert the modified text at the cursor's position
+editor.replaceRange(newString, cursor);
+
+// Optionally, move the cursor to the end of the inserted text
+editor.setCursor({ line: cursor.line, ch: cursor.ch + newString.length });
+    })
+    .catch(err => {
+      console.error("Failed to read clipboard contents:", err);
+    });
+} else {
+  console.log("Clipboard API not available in this browser.");
+}
+
+
+
+//console.log(newString);
+  }
+
+
+    if(suggestionsEnabled === false){
+      selectedSuggestionIndex = 1;
+      lastSelectedSuggestionIndex = 1;
+    return;}
+
+
   //selectedSuggestionIndex = selectedSuggestionIndex < 0 ? suggestionsArray.length : selectedSuggestionIndex
 
     suggestionsContainer = document.getElementById("suggestions");
@@ -312,6 +418,7 @@ console.log("index: " + selectedSuggestionIndex)
       selectedSuggestionIndex++;
     }
   }
+  
 
   if(suggestionKey){
   //console.log(suggestionsArray[selectedSuggestionIndex].classList[0] === "cm-header")
@@ -356,6 +463,7 @@ console.log("index: " + selectedSuggestionIndex)
     suggestionsContainer.scrollTop = selectedSuggestionTop - containerHeight;
   }
 
+  
   // Highlight the selected suggestion visually
 suggestionsArray.forEach((suggestion, index) => {
     if (index == selectedSuggestionIndex){
@@ -373,6 +481,18 @@ suggestionsArray.forEach((suggestion, index) => {
 console.log(selectedSuggestionIndex)
 });
 
+editor.on("cursorActivity", function() {
+  var cursorPos = editor.cursorCoords();
+  var lines = editor.getValue().split(/\r?\n/)
+  var currentline = lines[editor.getCursor().line]
+
+
+  //console.log(editor.getValue())
+
+  copyButton.style.top = cursorPos.top + 10 + "px";
+  copyButton.style.left = 80 + (15 * currentline.length-1) + "px";
+});
+
  // Capture user input and display suggestions
  editor.on("change", function(editor, event) {
         // Get the position of the cursor
@@ -380,8 +500,6 @@ console.log(selectedSuggestionIndex)
         var cursorPos = editor.cursorCoords(cursor);
         var token = editor.getTokenAt(cursor);
 
-        copyButton.style.top = cursorPos.top + 10 + "px";
-        copyButton.style.left = cursorPos.right + 220 + "px";
 
         if (token.type === "key" || token.type === "var"){
 
@@ -391,6 +509,7 @@ console.log(selectedSuggestionIndex)
         suggestionsEnabled=true
         suggestionsContainer.innerHTML = "";
         
+
         var currentWord = token.string;
         var filteredSuggestions = customKeySuggestions.filter(function(suggestion) {
             return suggestion.toLowerCase().startsWith(currentWord.toLowerCase());
@@ -426,9 +545,12 @@ console.log(selectedSuggestionIndex)
         });
 
 
+        var customAllVarSuggestions = customVarSuggestions
+        if(customVariables_Added.length > 0)
+        customAllVarSuggestions = customAllVarSuggestions.concat(customVariables_Added)
 
-        var filteredVarSuggestions = customVarSuggestions.filter(function(suggestion) {
-            return suggestion.toLowerCase().startsWith(currentWord.toLowerCase());
+        var filteredVarSuggestions = customAllVarSuggestions.filter(function(suggestion) {
+          return suggestion.toLowerCase().startsWith(currentWord.toLowerCase());
         });
 
         //if (filteredVarSuggestions.length == 0){
@@ -470,6 +592,21 @@ console.log(selectedSuggestionIndex)
             suggestionsEnabled=false
         }
 
+        let ySize = 0
+        var suggestionsArray = Array.from(suggestionsContainer.children);
+
+        suggestionsArray.forEach((suggestion, index) => {
+        ySize += suggestion.getBoundingClientRect().height
+        });
+        
+        if (ySize <= 0 || ySize >= 500)
+        {
+          suggestionsContainer.style.height = 200+"px";
+        }
+        else{
+          suggestionsContainer.style.height = ySize+"px";
+        }
+
         var content = editor.getValue();
         localStorage.setItem("code", content);
     });
@@ -479,6 +616,10 @@ console.log(selectedSuggestionIndex)
         // Get the selected suggestion
         var selectedSuggestion = event.target.innerText;
 
+        var customAllVarSuggestions = customVarSuggestions
+        if(customVariables_Added.length > 0)
+        customAllVarSuggestions = customAllVarSuggestions.concat(customVariables_Added)
+
         for(let i = 0; i < customKeySuggestions.length; i++)
         {
           if(customKeySuggestions[i] == selectedSuggestion)
@@ -486,7 +627,7 @@ console.log(selectedSuggestionIndex)
             selectedSuggestion+="=,";
             break;
           }
-          else if(customVarSuggestions[i] == selectedSuggestion)
+          else if(customAllVarSuggestions[i] == selectedSuggestion)
           {
             if(selectedSuggestion == "vector")
             {
@@ -499,6 +640,15 @@ console.log(selectedSuggestionIndex)
             else if(selectedSuggestion == "user")
             {
               selectedSuggestion = "[USER]";
+            }
+            else if(selectedSuggestion != null){
+              var gotEqual = selectedSuggestion.split("=")
+
+              if(gotEqual.length > 1)
+              {
+                selectedSuggestion = gotEqual[1];
+              }
+
             }
           }
         }
